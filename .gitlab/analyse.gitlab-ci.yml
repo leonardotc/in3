@@ -1,13 +1,3 @@
-include:
-  - template: Security/SAST.gitlab-ci.yml
-variables:
-  SAST_DISABLE_DIND: "true"
-  #  SAST_EXCLUDED_ANALYZERS: gosec,nodejs-scan,brakeman
-  SAST_EXCLUDED_ANALYZERS: spotbugs,gosec,nodejs-scan,brakeman,eslint,semgrep
-  SAST_EXCLUDED_PATHS: spec, test, tests, tmp, examples, third-party, dotnet, java, python, rust, wasm, scripts, include, example, docs
-  SAST_BANDIT_EXCLUDED_PATHS: "*/tests/*, */venv/*, */*"
-  SAST_FLAWFINDER_LEVEL: 3
-
 .only_full:
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v[0-9]+.[0-9]+.[0-9]+-(alpha|beta|rc)\.[0-9]+$/'
@@ -15,30 +5,6 @@ variables:
     - if: '$CI_COMMIT_REF_NAME == "master"'
     - if: '$CI_COMMIT_REF_NAME == "develop"'
     - if: '$CI_COMMIT_REF_PROTECTED == "true"'
-
-sonarqube:
-  image: docker.slock.it/build-images/cmake:sonar
-  allow_failure: true
-  needs:
-    - coverage
-  stage: analysis
-  script:
-    - echo "sonar.cfamily.llvm-cov.reportPath=cov_build/coverage.txt" >> sonar-project.properties
-    - mkdir .sonar
-    - mkdir build; cd build;  cmake -DIN3API=true -DIN3_LIB=false -DUSE_CURL=false -DTEST=true -DZKSYNC=true -DCODE_COVERAGE=true -DUSE_SEGGER_RTT=false -DTRANSPORTS=false -DCMAKE_BUILD_TYPE=Debug ..
-    - /sonar/build-wrapper-linux-x86/build-wrapper-linux-x86-64 --out-dir ../.sonar/bw-output make
-    - cd ..
-    - /sonar/sonar-scanner-4.6.2.2472-linux/bin/sonar-scanner -Dsonar.cfamily.build-wrapper-output=.sonar/bw-output
-  after_script:
-    - export PROJECT=$(grep projectKey sonar-project.properties |  cut -d "=" -f 2)
-    - 'curl -v -u $SONAR_TOKEN:  "$SONAR_HOST_URL/api/issues/search?componentKeys=$PROJECT&branch=${CI_COMMIT_REF_NAME}&statuses=${STATUSES}&severities=${SEVERITIES}&types=${TYPES}" | node /sonar/sonar.js > sonar_sast.json'
-  artifacts:
-    reports:
-      sast: sonar_sast.json
-  variables:
-    STATUSES: OPEN,CONFIRMED,REOPENED
-    SEVERITIES: BLOCKER,CRITICAL
-    TYPES: BUG,VULNERABILITY
 
 coverage:
   stage: analysis
@@ -189,31 +155,6 @@ format:
 #    - cpd -minimum-tokens 150 --language java --files java/src
 #    - cpd -minimum-tokens 150 --language python --files python
 
-vulnerabilities:
-  rules:
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+.[0-9]+.[0-9]+(\-RC[0-9]+)?$/'
-    - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
-  stage: analysis
-  extends: .only_full
-  allow_failure: true
-  needs:
-    - docker
-  tags:
-    - short-jobs
-  image: docker.slock.it/build-images/vulnerability-testing-tools
-  script:
-    - export COMMIT_IMAGE_TAG="$CI_REGISTRY_IMAGE:${CI_COMMIT_REF_NAME/\//_}"
-    - echo $COMMIT_IMAGE_TAG
-    - export TRIVY_AUTH_URL=$CI_REGISTRY
-    - export TRIVY_USERNAME=gitlab-ci-token
-    - export TRIVY_PASSWORD=$CI_JOB_TOKEN
-    - trivy -f json -o vulnerability_analysis.json --exit-code 1 $COMMIT_IMAGE_TAG || echo "failed! See details in artifacts"
-  artifacts:
-    paths:
-      - vulnerability_analysis.json
-
 metrics:
   stage: analysis
   image: docker.slock.it/build-images/deployment
@@ -232,67 +173,3 @@ metrics:
       - metrics.txt
     reports:
       metrics: metrics.txt
-
-semgrep-sast:
-  needs: []
-  stage: analysis
-  variables:
-    SAST_ANALYZER_IMAGE_TAG: "2.16"
-
-eslint-sast:
-  needs: []
-  variables:
-    SAST_ANALYZER_IMAGE_TAG: "2.16"
-  stage: analysis
-
-flawfinder-sast:
-  needs: []
-  stage: analysis
-security-code-scan-sast:
-  needs: []
-  stage: analysis
-
-gosec-sast:
-  needs: []
-  #  when: never
-  stage: analysis
-
-nodejs-scan-sast:
-  needs: []
-  #  when: never
-  stage: analysis
-
-spotbugs-sast:
-  needs: []
-  stage: analysis
-
-bandit-sast:
-  needs: []
-  stage: analysis
-
-brakeman-sast:
-  needs: []
-  stage: analysis
-  #  when: never
-  variables:
-    SAST_ANALYZER_IMAGE_TAG: "2.21.1"
-
-black duck scan branches:
-  extends:
-    - .scan
-  stage: analysis
-  variables:
-    VERSION: ${CI_COMMIT_BRANCH}
-  only:
-    - develop
-    - main
-    - master
-
-black duck scan tags:
-  extends:
-    - .scan
-  stage: analysis
-  variables:
-    VERSION: ${CI_COMMIT_TAG}
-  only:
-    - tags

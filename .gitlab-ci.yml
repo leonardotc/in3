@@ -37,15 +37,6 @@ include:
   - local: "/.gitlab/build.gitlab-ci.yml"
   - local: "/.gitlab/analyse.gitlab-ci.yml"
   - local: "/.gitlab/deploy.gitlab-ci.yml"
-  - project: build-images/synopsys-detect
-    ref: main
-    file: "/templates/.gitlab-ci-blackduck.yml"
-  - project: 'build-images/synopsys-detect'
-    ref: main
-    file: '/templates/.gitlab-ci-blackduck-signature.yml' # Signature scans
-  - project: 'build-images/sonar-qube'
-    ref: main
-    file: '/templates/.gitlab-ci-sonarqube.yml'
 
 wasm:
   stage: bindings
